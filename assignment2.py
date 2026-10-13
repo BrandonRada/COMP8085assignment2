@@ -15,6 +15,7 @@ The images can easily be converted into text files.
 import sys
 import pygame
 from collections import deque
+import heapq
 
 ########################################################################################################
 ## GLOBALS (Sssshhh, don't tell the Java programmers about this ;)
@@ -25,7 +26,7 @@ TILE_SIZE = 32
 
 # We want the animation to be updated every one-tenth of a second (so 10 FPS). You can adjust this but if you make
 # it too fast, you'll mist the visual representation of how the algorithms work
-ANIMATION_DELAY_MS = 1000
+ANIMATION_DELAY_MS = 500
 
 # These are the colors we define for the board
 COLORS = {
@@ -196,6 +197,152 @@ def bfs(grid, start, goal):
             "path": set(path)
         })
 
+    # Print path length and number of explored states:
+    print(f"Path length: {len(path)}")
+    print(f"Explored states: {len(visited)}")
+
+    return animation_steps
+
+## Depth-First Search
+def dfs(grid, start, goal):
+    frontier = deque([start])
+    visited = {start}
+    came_from = {}
+
+    animation_steps = []
+
+    while frontier:
+        current = frontier.pop()
+
+        animation_steps.append({
+            "position": current,
+            "visited": set(visited),
+            "path": set()
+        })
+
+        if current == goal:
+            break
+
+        # Could reverse()
+        for neighbor in get_valid_moves(grid, current):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                came_from[neighbor] = current
+                frontier.append(neighbor)
+
+    path = reconstruct_path(came_from, start, goal)
+
+    for position in path:
+        animation_steps.append({
+            "position": position,
+            "visited": set(visited),
+            "path": set(path)
+        })
+
+    # Print path length and number of explored states:
+    print(f"Path length: {len(path)}")
+    print(f"Explored states: {len(visited)}")
+
+    return animation_steps
+
+## Greedy Best-First Search
+def greedy_search(grid, start, goal):
+    frontier = []
+    visited = {start}
+    came_from = {}
+    animation_steps = []
+
+    heapq.heappush(frontier, (heuristic(start, goal), start))
+
+    while frontier:
+        _, current = heapq.heappop(frontier)
+        
+        animation_steps.append({
+            "position": current,
+            "visited": set(visited),
+            "path": set()
+        })
+
+        if current == goal:
+            break
+
+        for neighbor in get_valid_moves(grid, current):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                came_from[neighbor] = current
+
+                priority = heuristic(neighbor, goal)
+                heapq.heappush(frontier, (priority, neighbor))
+
+    path = reconstruct_path(came_from, start, goal)
+
+    for position in path:
+        animation_steps.append({
+            "position": position,
+            "visited": set(visited),
+            "path": set(path)
+        })
+
+    # Print path length and number of explored states:
+    print(f"Path length: {len(path)}")
+    print(f"Explored states: {len(visited)}")
+
+    return animation_steps
+
+## A-Star Search
+def astar_search(grid, start, goal):
+    frontier = []
+    visited = set()
+    came_from = {}
+    g_score = {start: 0}
+    animation_steps = []
+
+    start_priority = heuristic(start, goal)
+    heapq.heappush(frontier, (start_priority, 0, start))
+
+    while frontier:
+        _, current_cost, current = heapq.heappop(frontier)
+
+        if current_cost != g_score[current]:
+            continue
+
+        if current in visited:
+            continue
+
+        visited.add(current)
+
+        animation_steps.append({
+            "position": current,
+            "visited": set(visited),
+            "path": set()
+        })
+
+        if current == goal:
+            break
+
+        for neighbor in get_valid_moves(grid, current):
+            possible_g = g_score[current] + 1
+
+            if possible_g < g_score.get(neighbor, float("inf")):
+                came_from[neighbor] = current
+                g_score[neighbor] = possible_g
+
+                priority = possible_g + heuristic(neighbor, goal)
+                heapq.heappush(frontier, (priority, possible_g, neighbor))
+
+    path = reconstruct_path(came_from, start, goal)
+
+    for position in path:
+        animation_steps.append({
+            "position": position,
+            "visited": set(visited),
+            "path": set(path)
+        })
+    
+    # Print path length and number of explored states:
+    print(f"Path length: {len(path)}")
+    print(f"Explored states: {len(visited)}")
+
     return animation_steps
 
 ########################################################################################################
@@ -207,9 +354,23 @@ def choose_search_algorithm(name, grid, start, goal):
     # ... or not. It's not really important for the assignment and learning outcomes.
     if name == "bfs":
         return bfs(grid, start, goal)
+    elif name == "dfs":
+        return dfs(grid, start, goal)
+    elif name == "greedy":
+        return greedy_search(grid, start, goal)
+    elif name == "astar":
+        return astar_search(grid, start, goal)
 
     raise ValueError(f"Unknown search algorithm: {name}")
 
+# Helper used to find heuristic
+def heuristic(current, goal):
+    current_row, current_coll = current
+    goal_row, goal_coll = goal
+
+    heuristic_val = abs(goal_row - current_row) + abs(goal_coll - current_coll)
+
+    return heuristic_val
 
 ########################################################################################################
 ## AND ..... RUN
@@ -225,8 +386,20 @@ def main():
         sys.exit(1)
 
     map_filename = sys.argv[1]
+    algorithms = ("bfs", "dfs", "greedy", "astar")
 
     grid, start, goal = load_map(map_filename)
+
+    # Let the user also select the algorihm to use
+    while True:
+        algorithm = input("Choose algorithm (bfs, dfs, greedy, astar): ").strip().lower()
+
+        if algorithm in algorithms:
+            break
+
+        print("Invalid algorithm choice, please choose from: bfs, dfs, greedy, or astar.\n")
+    
+    animation_steps = choose_search_algorithm(algorithm, grid, start, goal)    
 
     # Some info to the user to let them know what keys to press
     print(f"Loaded map: {len(grid)} rows x {len(grid[0])} columns")
@@ -249,7 +422,6 @@ def main():
 
     clock = pygame.time.Clock()
 
-    animation_steps = choose_search_algorithm("bfs", grid, start, goal)
     current_step_index = 0
     is_running = False
     last_step_time = 0
