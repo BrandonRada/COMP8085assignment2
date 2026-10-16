@@ -1,14 +1,67 @@
 """
-COMP 8085 - Assignment 1 Example Template
+COMP 8085 - Assignment 2
 
 Run:
-    python assignment2-template.py
+    py assignment2.py <map file>
 
-Please rename this template (i.e., at least take out the name "template" when you submit the file).
+Questions To Answer
+*I have Included my test results in a file called Assignment2_test_results.txt
 
-A good web site you can use to make tiles is at: https://www.pixilart.com/draw?ref=home-page
+1. Which search algorithm performed best on the supplied maps? Explain how you measured
+“best” and justify your answer.
 
-The images can easily be converted into text files.
+I think the "best" algorithm here is one that finds a short path and also explored as few states as possible. Based on my results from
+the supplied maps, Greedy Best-First Search performed well because it was consistantly able to find paths with the same lengths as BFS
+and A* while exploring less states than them.
+
+Ex. On map 1, Greedy found a path with length 33 and explored only 143 states, compared to BFS which found a same length path but
+explored 281 states. Map 2, Greedy found a path of length 28, and only explored 30 states! While for a path of same length A*
+was closest to it but explored 81 and BFS 218. For map 3 Greedy found a Path of length 19, while only exploring 21 states, where BFS needed 120
+states explored.
+
+This shows that Greedy Bet-First search was the most efficient overall on the given maps in terms of balancing path length and explored
+states. Even though it makes a great balance, it doesnt necessarily always find the shortest path on every map and does not avoid enemies
+like A* does. If finding a shortest path AND avoiding enemies was important (like if health played a part in finding the best algorithm)
+A* would be preferable.
+
+
+2. Which search algorithm explored the greatest number of states? Why do you think this
+occurred?
+
+BFS explored the most states on the supplied maps. It explored 281 states on Map 1, 218 on Map 2, and 123 on Map 3.
+BFS explores the search space level by level evenly, which means it doesnt wander far one corridor, which leads it to explore much more of
+the map before finding the Goal state. This lets it find the shortest path when all the moves cost the same amount, but in turn explores
+more. 
+
+
+3. Identify a map where one algorithm performed noticeably better or worse than the others based
+on your added map. Explain the characteristics of the map that contributed to this behaviour.
+
+I have One custom map (dungeon_map_custom2.txt) which shows the strength of A* and Greedy Best-Firsts worst performance yet, 
+and another (dungeon_map_custom_astar_failure.txt) which shows a big failure in an implimentation of A* that uses Enemy Avoidance.
+
+===================== dungeon_map_custom2.txt =====================
+In custom2, A* found a path of length 50 while exploring 115 states. BFS also found the same path length of 50 but explored 192 states.
+Here A* found the shortest path with 77 less states explored.
+DFS explored only 112 states which was the shortest, but its path length was 86, so least explored states doesnt mean shortest path.
+
+Greedy also performed very poorly on this map, it found a path length of 84, much higher than BFS and A*, and it had to explore 178 states
+which is 63 more than A*. The reason it performed poorly on this map, is that it went all the way down and right, thinking it could reach 
+the end only to find a dead end, it then went all the way right and down, coming to another dead end, and completely missing a shortcut,
+which A* was able to find. 
+
+So the biggest characteristics are a long "direct" path to the goal, with a dead end, requiring it to return
+and try another path.
+
+===================== dungeon_map_custom_astar_failure.txt =====================
+In astar_failure, A* found a path length of 50, exploring 251 states. This is terrible considering that all three other algorithms
+found a path length of 17, with BFS exploring 138 states, DFS 18, and Greedy Best-First 18.
+
+The map has the Start at the top left, and the Goal at the top right, a straight path that requires only 18 moves. I included some
+extra walls/corridors, health, and enemies for fun, I just wanted to show a big failure with enemy avoidance for A* here.
+The thing that stops A* from producing the same result as DFS and Greedy Best-First is an enemy placed right before the Goal on the
+straight path. The enemy forces A* to go all the way around, leading to more explored states and a worse length path.
+
 
 """
 
@@ -26,7 +79,7 @@ TILE_SIZE = 32
 
 # We want the animation to be updated every one-tenth of a second (so 10 FPS). You can adjust this but if you make
 # it too fast, you'll mist the visual representation of how the algorithms work
-ANIMATION_DELAY_MS = 500
+ANIMATION_DELAY_MS = 50
 
 # These are the colors we define for the board
 COLORS = {
@@ -167,11 +220,15 @@ def bfs(grid, start, goal):
     frontier = deque([start])
     visited = {start}
     came_from = {}
+    explored = set()
 
     animation_steps = []
 
     while frontier:
         current = frontier.popleft()
+
+        # More accurate for counting explored nodes
+        explored.add(current)
 
         animation_steps.append({
             "position": current,
@@ -198,8 +255,9 @@ def bfs(grid, start, goal):
         })
 
     # Print path length and number of explored states:
-    print(f"Path length: {len(path)}")
-    print(f"Explored states: {len(visited)}")
+    print(f"\nPath length: {len(path) - 1 if path else 'No path found'}")
+    # print(f"Explored states: {len(visited)}\n")
+    print(f"Explored states: {len(explored)}\n")
 
     return animation_steps
 
@@ -208,11 +266,15 @@ def dfs(grid, start, goal):
     frontier = deque([start])
     visited = {start}
     came_from = {}
+    explored = set()
 
     animation_steps = []
 
     while frontier:
         current = frontier.pop()
+
+        # More accurate for counting explored nodes
+        explored.add(current)
 
         animation_steps.append({
             "position": current,
@@ -240,8 +302,9 @@ def dfs(grid, start, goal):
         })
 
     # Print path length and number of explored states:
-    print(f"Path length: {len(path)}")
-    print(f"Explored states: {len(visited)}")
+    print(f"\nPath length: {len(path) - 1 if path else 'No path found'}")
+    # print(f"Explored states: {len(visited)}\n")
+    print(f"Explored states: {len(explored)}\n")
 
     return animation_steps
 
@@ -251,11 +314,15 @@ def greedy_search(grid, start, goal):
     visited = {start}
     came_from = {}
     animation_steps = []
+    explored = set()
 
     heapq.heappush(frontier, (heuristic(start, goal), start))
 
     while frontier:
         _, current = heapq.heappop(frontier)
+
+        # More accurate for counting explored nodes
+        explored.add(current)
         
         animation_steps.append({
             "position": current,
@@ -284,8 +351,9 @@ def greedy_search(grid, start, goal):
         })
 
     # Print path length and number of explored states:
-    print(f"Path length: {len(path)}")
-    print(f"Explored states: {len(visited)}")
+    print(f"\nPath length: {len(path) - 1 if path else 'No path found'}")
+    # print(f"Explored states: {len(visited)}\n")
+    print(f"Explored states: {len(explored)}\n")
 
     return animation_steps
 
@@ -321,6 +389,11 @@ def astar_search(grid, start, goal):
             break
 
         for neighbor in get_valid_moves(grid, current):
+            # Check for enemy
+            row, col = neighbor
+            if grid[row][col] == "E":
+                continue
+
             possible_g = g_score[current] + 1
 
             if possible_g < g_score.get(neighbor, float("inf")):
@@ -340,8 +413,8 @@ def astar_search(grid, start, goal):
         })
     
     # Print path length and number of explored states:
-    print(f"Path length: {len(path)}")
-    print(f"Explored states: {len(visited)}")
+    print(f"\nPath length: {len(path) - 1 if path else 'No path found'}")
+    print(f"Explored states: {len(visited)}\n")
 
     return animation_steps
 
